@@ -211,7 +211,8 @@ impl Database {
     /// # database.create_table(table2).unwrap();
     /// let tables = database.list_tables();
     /// # assert_eq!(tables.len(), 2);
-    /// # assert_eq!(tables, vec!["MyTable".to_string(), "MySecondTable".to_string()]);
+    /// # assert!(tables.contains(&"MyTable".to_string()));
+    /// # assert!(tables.contains(&"MySecondTable".to_string()));
     /// ```
     pub fn list_tables(&mut self) -> Vec<String> {
         let mut results = Vec::new();
