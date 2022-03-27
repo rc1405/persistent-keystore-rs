@@ -14,6 +14,7 @@ pub enum Field {
     U64(u64),
     U32(u32),
     Date(SystemTime),
+    Bool(bool),
     NotImplemented,
 }
 
@@ -26,6 +27,7 @@ impl Field {
             Field::U64(_) => FieldType::U64,
             Field::U32(_) => FieldType::U32,
             Field::Date(_) => FieldType::Date,
+            Field::Bool(_) => FieldType::Bool,
             Field::NotImplemented => FieldType::None,
         };
         t
@@ -41,6 +43,7 @@ impl fmt::Display for Field {
             Field::U64(v) => format!("{}", v),
             Field::U32(v) => format!("{}", v),
             Field::Date(v) => format!("{:?}", v),
+            Field::Bool(v) => format!("{}", v),
             Field::NotImplemented => format!("NotImplemented"),
         };
         write!(f, "{}", msg)
@@ -55,6 +58,7 @@ pub enum FieldType {
     U64,
     U32,
     Date,
+    Bool,
     None,
 }
 
@@ -674,6 +678,7 @@ impl fmt::Display for Entry {
             Field::U64(v) => format!("{}", v),
             Field::U32(v) => format!("{}", v),
             Field::Date(v) => format!("{:?}", v),
+            Field::Bool(v) => format!("{}", v),
             Field::NotImplemented => format!("NotImplemented"),
         };
         write!(f, "{}", msg)
