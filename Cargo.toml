@@ -1,6 +1,6 @@
 [package]
 name = "persistent-keystore-rs"
-version = "0.0.2"
+version = "0.0.4"
 edition = "2021"
 license = "Apache-2.0"
 description = "Lightweight Persistent Database library written in Rust"

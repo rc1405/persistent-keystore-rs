@@ -12,6 +12,7 @@ use tracing::{debug, error, info, trace};
 
 mod structs;
 pub mod errors;
+pub mod mocks;
 pub use structs::*;
 use errors::*;
 use std::thread::JoinHandle;
