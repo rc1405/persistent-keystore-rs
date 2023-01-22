@@ -1,6 +1,6 @@
 [package]
 name = "persistent-keystore-rs"
-version = "0.0.4"
+version = "0.0.7"
 edition = "2021"
 license = "Apache-2.0"
 description = "Lightweight Persistent Database library written in Rust"
@@ -13,5 +13,7 @@ lz4_flex = { version = "0.9.2", features = ["safe-encode","safe-decode","checked
 serde = { version = "1.0.130", features = ["rc"]}
 serde_derive = "1.0.130"
 tracing = { version = "0.1.29", features = ["log-always"] }
+mockall = { version = "0.10.2", optional = true }
 
 [features]
+mocks = ["mockall"]

@@ -9,10 +9,11 @@ use std::thread::sleep;
 use std::fs::OpenOptions;
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
 use tracing::{debug, error, info, trace};
+#[cfg(feature = "mocks")]
+use mockall::{automock, predicate::*};
 
 mod structs;
 pub mod errors;
-pub mod mocks;
 pub use structs::*;
 use errors::*;
 use std::thread::JoinHandle;
@@ -29,6 +30,24 @@ impl Drop for Saver {
             h.join().unwrap();
         }
     }
+}
+
+
+#[cfg_attr(feature = "mocks", automock)]
+pub trait DatabaseClient {
+    fn save(self: &mut Self) -> Result<(), DatabaseError>;
+    fn create_table(self: &mut Self, table: Table) -> Result<(), DatabaseError>;
+    fn list_tables(self: &mut Self) -> Result<Vec<String>, DatabaseError>;
+    fn drop_table(self: &mut Self, table: &String) -> Result<(), DatabaseError>;
+    fn insert(self: &mut Self, table: String, entry: Entry) -> Result<(), DatabaseError>;
+    fn insert_or_update(self: &mut Self, table: String, entry: Entry) -> Result<(), DatabaseError>;
+    fn update(self: &mut Self, table: String, entry: Entry) -> Result<(), DatabaseError>;
+    fn get(self: &mut Self, table: String, primary_field: Field) -> Result<Entry, DatabaseError>;
+    fn delete(self: &mut Self, table: String, primary_field: Field) -> Result<(), DatabaseError>;
+    fn delete_many(self: &mut Self, table: String, criteria: HashMap<String, Field>) -> Result<u64, DatabaseError>;
+    fn scan(self: &mut Self, table: String) -> Result<Vec<Entry>, DatabaseError>;
+    fn query(self: &mut Self, table: String, criteria: HashMap<String, Field>) -> Result<Vec<Entry>, DatabaseError>;
+    fn prune(self: &mut Self) -> Result<(), DatabaseError>;
 }
 
 /// Thread-safe, optionally persistent client for interacting with a keystore database
@@ -78,7 +97,7 @@ impl Client {
     /// ```
     /// This thread will prune (remove stale entries) and save the database
     /// every duration
-    pub fn new<P: AsRef<Path> + Clone + std::fmt::Debug>(path: P, sync_interval: Option<Duration>) -> Result<Self, DatabaseError> {
+    pub fn new<P: AsRef<Path> + Clone + std::fmt::Debug>(path: P, sync_interval: Option<Duration>) -> Result<Box<dyn DatabaseClient>, DatabaseError> {
         info!("Creating Client with database at {:?}", path);
         if path.as_ref().exists() {
             error!("Database exists, cannot create: {:?}", path);
@@ -127,7 +146,7 @@ impl Client {
 
         client.save()?;
         trace!("Returning Client");
-        Ok(client)
+        Ok(Box::new(client))
     }
 
     /// Opens an existing database at the supplied path
@@ -141,7 +160,7 @@ impl Client {
     /// ```
     /// This database will resume the sync settings that were provided when
     /// the database was created.
-    pub fn open<P: AsRef<Path> + Clone + std::fmt::Debug>(path: P) -> Result<Self, DatabaseError> {
+    pub fn open<P: AsRef<Path> + Clone + std::fmt::Debug>(path: P) -> Result<Box<dyn DatabaseClient>, DatabaseError> {
         info!("Opening Client with database at {:?}", path);
         if !path.as_ref().exists() {
             error!("Database does not exist exists, cannot open: {:?}", path);
@@ -192,9 +211,11 @@ impl Client {
 
         trace!("Returning Client");
 
-        Ok(client)
+        Ok(Box::new(client))
     }
+}
 
+impl DatabaseClient for Client {
     /// Removes stale entries as defined by the expiration value per table
     /// and saves the database to disk; using lz4 compression
     /// ```
@@ -209,7 +230,7 @@ impl Client {
     /// # let mut c = Client::new(std::path::Path::new("saved2.db"), None).unwrap();
     /// c.save();
     /// # std::fs::remove_file("saved2.db").unwrap();
-    pub fn save(&mut self) -> Result<(), DatabaseError> {
+    fn save(&mut self) -> Result<(), DatabaseError> {
         trace!("Saving database");
         if let Ok(database) = self.database.lock() {
             if let Ok(raw_file) = self.raw_file.lock() {
@@ -253,7 +274,7 @@ impl Client {
     /// c.create_table(table).unwrap();
     /// # std::fs::remove_file("createtable.db").unwrap();
     /// ```
-    pub fn create_table(&mut self, table: Table) -> Result<(), DatabaseError> {
+    fn create_table(&mut self, table: Table) -> Result<(), DatabaseError> {
         trace!("Creating table {}", table.name);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table.name.clone()) {
@@ -289,7 +310,7 @@ impl Client {
     /// assert_eq!(tables[0], String::from("MyTable"));
     /// # std::fs::remove_file("listtable.db").unwrap();
     /// ```
-    pub fn list_tables(&mut self) -> Result<Vec<String>, DatabaseError> {
+    fn list_tables(&mut self) -> Result<Vec<String>, DatabaseError> {
         trace!("Listing Tables");
         if let Ok(mut database) = self.database.lock() {
             let tables = database.list_tables();
@@ -321,7 +342,7 @@ impl Client {
     /// assert_eq!(current_tables.len(), 0);
     /// # std::fs::remove_file("droptable.db").unwrap();
     /// ```
-    pub fn drop_table(&mut self, table: &String) -> Result<(), DatabaseError> {
+    fn drop_table(&mut self, table: &String) -> Result<(), DatabaseError> {
         trace!("Dropping table {}", table);
         if let Ok(mut database) = self.database.lock() {
             debug!("Dropping table {}", table);
@@ -354,7 +375,7 @@ impl Client {
     /// c.insert("MyTable".to_string(), entry).unwrap();
     /// # std::fs::remove_file("insertentry.db").unwrap();
     /// ```
-    pub fn insert(&mut self, table: String, entry: Entry) -> Result<(), DatabaseError> {
+    fn insert(&mut self, table: String, entry: Entry) -> Result<(), DatabaseError> {
         trace!("Inserting entry into table {}: {}", table, entry);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -396,7 +417,7 @@ impl Client {
     /// c.insert_or_update("MyTable".to_string(), entry).unwrap();
     /// # std::fs::remove_file("insertorupdateentry.db").unwrap();
     /// ```
-    pub fn insert_or_update(&mut self, table: String, entry: Entry) -> Result<(), DatabaseError> {
+    fn insert_or_update(&mut self, table: String, entry: Entry) -> Result<(), DatabaseError> {
         trace!("Inserting or updating entry into table {}: {}", table, entry);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -438,7 +459,7 @@ impl Client {
     /// c.update("MyTable".to_string(), entry).unwrap();
     /// # std::fs::remove_file("updateentry.db").unwrap();
     /// ```
-    pub fn update(&mut self, table: String, entry: Entry) -> Result<(), DatabaseError> {
+    fn update(&mut self, table: String, entry: Entry) -> Result<(), DatabaseError> {
         trace!("Updating entry into table {}: {}", table, entry);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -480,7 +501,7 @@ impl Client {
     /// let e = c.get("MyTable".to_string(), Field::String("MyFirstEntry".to_string())).unwrap();
     /// # std::fs::remove_file("getentry.db").unwrap();
     /// ```
-    pub fn get(&mut self, table: String, primary_field: Field) -> Result<Entry, DatabaseError> {
+    fn get(&mut self, table: String, primary_field: Field) -> Result<Entry, DatabaseError> {
         trace!("Getting entry {} from table {}", primary_field, table);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -523,7 +544,7 @@ impl Client {
     /// c.delete("MyTable".to_string(), Field::String("MyFirstEntry".to_string())).unwrap();
     /// # std::fs::remove_file("delete.db").unwrap();
     /// ```
-    pub fn delete(&mut self, table: String, primary_field: Field) -> Result<(), DatabaseError> {
+    fn delete(&mut self, table: String, primary_field: Field) -> Result<(), DatabaseError> {
         trace!("Deleting entry {} from table {}", primary_field, table);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -582,7 +603,7 @@ impl Client {
     /// # assert_eq!(c.scan("MyTable".to_string()).unwrap().len(), 1);
     /// # std::fs::remove_file("deletemany.db").unwrap();
     /// ```
-    pub fn delete_many(&mut self, table: String, criteria: HashMap<String, Field>) -> Result<u64, DatabaseError> {
+    fn delete_many(&mut self, table: String, criteria: HashMap<String, Field>) -> Result<u64, DatabaseError> {
         trace!("Deleting many from table {}", table);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -660,7 +681,7 @@ impl Client {
     /// # assert_eq!(c.scan("MyTable".to_string()).unwrap().len(), 3);
     /// # std::fs::remove_file("scan.db").unwrap();
     /// ```
-    pub fn scan(&mut self, table: String) -> Result<Vec<Entry>, DatabaseError> {
+    fn scan(&mut self, table: String) -> Result<Vec<Entry>, DatabaseError> {
         trace!("Scanning table {}", table);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -719,7 +740,7 @@ impl Client {
     /// # assert_eq!(results.len(), 2);
     /// # std::fs::remove_file("query.db").unwrap();
     /// ```
-    pub fn query(&mut self, table: String, criteria: HashMap<String, Field>) -> Result<Vec<Entry>, DatabaseError> {
+    fn query(&mut self, table: String, criteria: HashMap<String, Field>) -> Result<Vec<Entry>, DatabaseError> {
         trace!("Querying table {}", table);
         if let Ok(mut database) = self.database.lock() {
             match database.get_table(&table) {
@@ -806,7 +827,7 @@ impl Client {
     /// };
     /// # std::fs::remove_file("prune.db").unwrap();
     /// ```
-    pub fn prune(&mut self) -> Result<(), DatabaseError> {
+    fn prune(&mut self) -> Result<(), DatabaseError> {
         trace!("Pruning database");
         if let Ok(mut database) = self.database.lock() {
             let current_time = SystemTime::now();
@@ -843,7 +864,7 @@ mod tests {
     use super::*;
     use std::env::temp_dir;
 
-    fn create_client_table(name: String) -> (Client, TableBuilder) {
+    fn create_client_table(name: String) -> (Box<dyn DatabaseClient>, TableBuilder) {
         let mut temp_dir_path = temp_dir();
         temp_dir_path.push(format!("{}.db", name));
         if temp_dir_path.exists() {

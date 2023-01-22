@@ -6,7 +6,7 @@ use std::fmt;
 
 use crate::errors::*;
 
-#[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub enum Field {
     String(String),
     I64(i64),
@@ -32,6 +32,7 @@ impl Field {
         };
         t
     }
+
 }
 
 impl fmt::Display for Field {
@@ -619,7 +620,7 @@ impl Table {
 }
 
 /// Entry represents all items that are contained within a Table
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Eq)]
 pub struct Entry {
     pub primary_field: Field,
     pub fields: HashMap<String, Field>,
