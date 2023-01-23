@@ -2,8 +2,13 @@
 use persistent_keystore_rs::MockDatabaseClient;
 #[cfg(all(test, feature = "mocks"))]
 use mockall::predicate;
-use persistent_keystore_rs::{DatabaseClient, Field, Entry};
+#[allow(unused_imports)]
+use persistent_keystore_rs::prelude::*;
+#[allow(unused_imports)]
+use persistent_keystore_rs::{Field, Entry};
+#[allow(unused_imports)]
 use persistent_keystore_rs::errors::DatabaseError;
+#[allow(unused_imports)]
 use std::collections::HashMap;
 
 #[test]
@@ -43,7 +48,7 @@ fn test_mock_get_item() {
         mockdb
             .expect_get()
             .with(predicate::eq("MyTable".to_string()), predicate::eq(Field::String("MyField".to_string())))
-            .returning(|x, y| return Ok(Entry{
+            .returning(|_x, y| return Ok(Entry{
                 primary_field: y,
                 fields: HashMap::new(),
                 last_timestamp: None,
